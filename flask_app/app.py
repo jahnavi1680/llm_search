@@ -1,5 +1,5 @@
 
-from flask import Flask, request
+from flask import Flask, request, jsonify
 import os
 
 # Load environment variables from .env file
@@ -26,7 +26,7 @@ def query():
     print("Step 3: generating answer")
 
     # return the jsonified text back to streamlit
-    return 
+    return jsonify({"answer": 'blah blah'})
 
 if __name__ == '__main__':
     app.run(host='localhost', port=5001)

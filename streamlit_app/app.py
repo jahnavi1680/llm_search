@@ -10,7 +10,10 @@ query = st.text_input("Enter your query:")
 if st.button("Search"):
     # Make a POST request to the Flask API
     print("accessing ", "<Flask app string>", " with query ", query)
-    response = None # call the flask app and get response
+    response = response = requests.post(
+    "http://localhost:5001/query",
+    json={"query": query}
+    ) # call the flask app and get response
 
     # implement the flask call here
     

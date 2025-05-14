@@ -6,20 +6,21 @@ import openai
 import textwrap
 import httpx
 #from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
-from together import Together
+import together
 
 #from sentence_transformers import SentenceTransformer
-#import chromadb
+import sentence_transformers as st
+import chromadb
 #from chromadb.config import Settings
 
 load_dotenv(dotenv_path="/Users/jahnavipoloju/llm_search/.env")
 
 
-#model = SentenceTransformer('all-MiniLM-L6-v2')  # Small, fast, decent quality
+model = st.SentenceTransformer('all-MiniLM-L6-v2')  # Small, fast, decent quality
 
 # Set up ChromaDB client (local in-memory DB)
-#chroma_client = chromadb.PersistentClient(path="db")  # This is the new correct way
-#collection = chroma_client.get_or_create_collection(name="sql_knowledge")
+chroma_client = chromadb.PersistentClient(path="db")  # This is the new correct way
+collection = chroma_client.get_or_create_collection(name="temporary")
 
 # ---- STEP 1: Load your data ----
 SERPER_API_KEY = os.getenv("SERPER_API_KEY")
@@ -32,7 +33,7 @@ params = {
     "q": "openai chatgpt latest features",
       "num": 1  # your query
 }
-#response = requests.post("https://google.serper.dev/search", headers=headers, json=params)
+response = requests.post("https://google.serper.dev/search", headers=headers, json=params)
 
 # Check the response
 '''if response.status_code == 200:
@@ -57,11 +58,90 @@ url='https://en.wikipedia.org/wiki/Donkey'
 response = requests.get(url)
 print(response)
 if response.status_code == 200:
+    current_chunk = ''
+    chunks = []
+    heading_stack = []  # Stack of (level, text), e.g., [(1, "Intro"), (2, "Background")]
+    current_h=''
+    
     soup = BeautifulSoup(response.content, 'html.parser')
-    tags = soup.find_all(['h1', 'h2', 'h3', 'p'])
-    for tag in tags:
-        all_text+=  tag.name+ ':' +tag.get_text(strip=True)
-print(all_text)
+    tags = soup.find_all(['h1', 'h2', 'h3','h4','h5','h6', 'p'])
+    maps = {'h1': 1,
+        'h2': 2,
+        'h3': 3,
+        'h4': 4,
+        'h5': 5,
+        'h6': 6
+    }
+    chunks = []
+    current_chunk = {'heading': None, 'paragraphs': []}
+    all_text=[]
+    headings=[]
+    for idx,element in enumerate(tags):
+        tag = element.name
+        text = element.get_text().strip()
+
+        if tag.startswith('h') and tag[1:].isdigit():
+            # Save previous chunk if it had a heading and content
+            if current_chunk['heading'] or current_chunk['paragraphs']:
+                chunks.append(current_chunk)
+                all_text.append(current_chunk['heading']+':'+' '.join(current_chunk['paragraphs']))
+                headings.append({"type": tag, "id": idx})
+            # Start a new chunk
+            current_chunk = {'heading': text, 'paragraphs': []}
+        elif tag == 'p':
+            if current_chunk['heading'] is None:
+                # Paragraph without heading — optional: skip or group under 'untitled'
+                current_chunk['heading'] = 'untitled'
+            current_chunk['paragraphs'].append(text)
+
+    # Append the last chunk if not empty
+    if current_chunk['heading'] or current_chunk['paragraphs']:
+        chunks.append(current_chunk)
+
+
+print(len(all_text))
+
+
+embeddings = model.encode(all_text).tolist()
+ids = [f"item_{i}" for i in range(len(all_text))]
+
+collection.add(
+    documents=all_text,
+    embeddings=embeddings,
+    metadatas=headings,
+    ids=ids
+)           
+
+model = st.SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+
+query = "what do donkeys eat as their main source of energy?"
+query_embedding = model.encode(query).tolist()
+results = collection.query(
+    query_embeddings=[query_embedding],
+    n_results=5
+)
+
+documents = results['documents'][0]  # list of top matching docs
+prompt = f"""
+You are an expert question-answer assistant. Based on the information below, answer the query.
+
+Context:
+{documents}
+
+Question:
+{query}
+"""
+
+client = together.Together() # auth defaults to os.environ.get("TOGETHER_API_KEY")
+response = client.chat.completions.create(
+model="Qwen/Qwen3-235B-A22B-fp8-tput",
+messages=[{"role": "user", "content":prompt}]
+)
+
+
+print(response.choices[0].message.content)
+
+
 
 # Load model and tokenizer
 #model_id = "mistralai/Mistral-7B-Instruct-v0.1"
@@ -84,7 +164,7 @@ def split_text(all_text, max_words=CHUNK_SIZE):
 def summarize_chunk(chunk, model=MODEL):
     openai.api_key=os.getenv("openai")
     client = Together() # auth defaults to os.environ.get("TOGETHER_API_KEY")
-    #client = openai.OpenAI(http_client=CustomHTTPClient())
+    client = openai.OpenAI(http_client=CustomHTTPClient())
     response = client.chat.completions.create(
     model="Qwen/Qwen3-235B-A22B-fp8-tput",
     messages=[{"role": "user", "content":  f"Please summarize the following:\n\n{chunk}"}]
@@ -118,28 +198,9 @@ def map_reduce_summarize(long_text, model="gpt-3.5-turbo"):
     return final_summary
 
 
-summary = map_reduce_summarize(all_text)
-print(textwrap.fill(summary, width=100))
 
 
-# ---- STEP 2: Convert text into chunking ----
 
-
-# ---- STEP 3: Convert texts to embeddings ----
-
-#embeddings = model.encode(text).tolist()  # Convert numpy arrays to plain lists
-
-# ---- STEP 4: Store in ChromaDB ----
-
-
-'''collection.add(
-    documents=texts,
-    embeddings=embeddings,
-    metadatas=metadatas,
-    ids=ids
-)
-
-print("✅ Done storing embeddings in ChromaDB!")'''
 
 
         

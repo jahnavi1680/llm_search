@@ -7,3 +7,4 @@ beautifulsoup4
 chromadb
 sentence-transformers
 together
+tf-keras
