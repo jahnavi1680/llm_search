@@ -33,7 +33,7 @@ def search_articles(query):
         all_content+=content
         all_headings+=headings
     # implement the search logic - retrieves articles
-    return all_content, all_headings
+    return chroma(all_content, all_headings,query)
 
 
 def fetch_article_content(url):
@@ -88,7 +88,7 @@ def fetch_article_content(url):
     return all_text,headings
 
 
-def chroma(all_content,all_headings):
+def chroma(all_content,all_headings,query):
     """
     Concatenates the content of the provided articles into a single string.
     """
@@ -110,7 +110,7 @@ def chroma(all_content,all_headings):
 
     # formatting + concatenation of the string is implemented here
 
-    return collection
+    return generate_answer(collection,query)
 
 
 def generate_answer(collection, query):
