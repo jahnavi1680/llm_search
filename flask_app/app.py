@@ -33,6 +33,7 @@ def query():
     # Step 3: Generate an answer using the LLM
     print("Step 3: generating answer")
     answer = utils.search_articles(user_query)
+    print(answer)
     # return the jsonified text back to streamlit
     return jsonify({"answer":answer})
 

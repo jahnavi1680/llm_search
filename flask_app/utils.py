@@ -1,11 +1,15 @@
 import os
 import requests
+from dotenv import load_dotenv
 from bs4 import BeautifulSoup
 import sentence_transformers as st
 import chromadb
+import together
+
+load_dotenv(dotenv_path="/Users/jahnavipoloju/llm_search/.env")
 
 # Load API keys from environment variables
-SERPER_API_KEY = None
+SERPER_API_KEY = os.getenv("SERPER_API_KEY")
 OPENAI_API_KEY = None
 
 
@@ -20,7 +24,7 @@ def search_articles(query):
     "Content-Type": "application/json"
     }
     params = {
-        "q": "openai chatgpt latest features",
+        "q": query,
         "num": 10  # your query
     }
     response = requests.post("https://google.serper.dev/search", headers=headers, json=params)
@@ -28,11 +32,12 @@ def search_articles(query):
     all_content = []
     all_headings = []
     for result in data.get("organic", []):  # organic search results
-        print(result["link"])
+        print('link ahoy',result["link"])
         content,headings=fetch_article_content(result["link"])
         all_content+=content
         all_headings+=headings
     # implement the search logic - retrieves articles
+    print('--------***************done collecting articles--------***************')
     return chroma(all_content, all_headings,query)
 
 
@@ -42,6 +47,7 @@ def fetch_article_content(url):
     """
     response = requests.get(url)
     print(response)
+
     if response.status_code == 200:
         current_chunk = ''
         chunks = []
@@ -82,6 +88,8 @@ def fetch_article_content(url):
         # Append the last chunk if not empty
         if current_chunk['heading'] or current_chunk['paragraphs']:
             chunks.append(current_chunk)
+    else:
+        return [],[]
 
     # implementation of fetching headings and content from the articles
 
@@ -109,7 +117,7 @@ def chroma(all_content,all_headings,query):
 
 
     # formatting + concatenation of the string is implemented here
-
+    print('done storing in chroma')
     return generate_answer(collection,query)
 
 
