@@ -5,12 +5,13 @@ from bs4 import BeautifulSoup
 import sentence_transformers as st
 import chromadb
 import together
-
+import openai
+import httpx
 load_dotenv(dotenv_path="/Users/jahnavipoloju/llm_search/.env")
 
 # Load API keys from environment variables
 SERPER_API_KEY = os.getenv("SERPER_API_KEY")
-OPENAI_API_KEY = None
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
 def search_articles(query):
@@ -150,6 +151,19 @@ def generate_answer(collection, query):
     )
 
 
+    class CustomHTTPClient(httpx.Client):
+        def __init__(self, *args, **kwargs):
+            kwargs.pop("proxies", None)  # Remove the 'proxies' argument if present
+            super().__init__(*args, **kwargs)
+    openai.api_key=OPENAI_API_KEY
+    client = openai.OpenAI(http_client=CustomHTTPClient())
+    response_gpt = client.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[{"role": "user", "content":prompt}]
+    )
+
+    if OPENAI_API_KEY :
+        return response_gpt.choices[0].message.content
     print(response.choices[0].message.content)
     # Create the prompt based on the content and the query
     
